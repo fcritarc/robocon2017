@@ -22,8 +22,10 @@ volatile uint8_t ry;
 int cross_button , square_button , circle_button , triangle_button , r1_button , l1_button , l2_button;
 int pad_up, pad_down, pad_left, pad_right;
 int flag=0;
+int error=0,p_error=0;
+float kp=0.4;
 
-	int y;
+int y;
 	
 int ramp(int count)
 {	int v;
@@ -148,37 +150,49 @@ void line()
 }
 void p_line()
 {
-	int error,kp=2;
+	//int kd=0.5,diff;
 	y=ADCL;
-	y=(ADCH<<2) | y;
-	y = ((float(y)/921)*70);
-	lcd_print(2,1,y,3);
-	error=(y-50)*kp;
-	if(dir==0)
+	y=(ADCH<<8) | y;
+
+	y=((float(y)/1020)*70);
+	error=(y-35)*kp;
+	if(error<0)
+	{	lcd_cursor(2,1);
+		lcd_string("-");
+		lcd_print(2,2,(error*(-1)),3);
+	}
+	else{
+		lcd_cursor(2,1);
+		lcd_string("+");
+		lcd_print(2,2,error,3);
+	}
+	lcd_print(2,9,y,4);
+	
+	/*if(dir==0)
 	{	
 		error=error*(-1)*kp;
 	}
 	else;
-	if((error>=(50)) || (error<=(-50)))
+	if((error>=(30)) || (error<=(-30)))
 	{
 		stop();
 	}
 	else
-	{
+	{*/
 		
 		if(error>0)
 		{
 			OCR1BL=30-error;  //wheel B
-			OCR2A=30;	 //wheel C
-			OCR1CL = 30;	 //wheel A
+			OCR2A=30+error;	 //wheel C -error
+			OCR1CL = 30+error;	 //wheel A
 			OCR1AL = 30-error;	 //wheel D
 		}
 		else if(error<0)
 		{
-			OCR1BL=30; //wheel B
+			OCR1BL=30-error; //wheel B+error
 			OCR2A=30+error;	 //wheel C
 			OCR1CL = 30+error;	 //wheel A
-			OCR1AL = 30;	 //wheel D
+			OCR1AL = 30-error;	 //wheel D
 			
 		}
 		else
@@ -191,7 +205,7 @@ void p_line()
 			
 		}
 	}
-}
+//}
 int main(void)
 {
 	psx_init(&PORTK , 1 , &PORTK , 4 , &PORTK , 0 , &PORTK , 2);		
@@ -204,7 +218,7 @@ int main(void)
 	
 	DDRF = 0x00;
 	
-	ADMUX = (1<<REFS0) | (1<<MUX0) | (1<<MUX1) | (1<<ADLAR);
+	ADMUX = (1<<REFS0) | (1<<MUX0) | (1<<MUX1) ;//ADLAR
 	ADCSRA = (1<<ADEN) | (1<<ADPS0) | (1<<ADPS1) | (1<<ADPS2) | (1<<ADATE) | (1<<ADSC);
 	
 	TCCR1A |= (1 << WGM10) | (1 << COM1A1) | (1 << COM1B1) |(1 << COM1C1);
@@ -225,44 +239,61 @@ while(1)
 {	
 	run_controller();
 	y=ADCL;
-	y=(ADCH<<2) | y;
-	y = ((float(y)/921)*70);
-	lcd_print(2,1,y,3);	
+	y=(ADCH<<8) | y;
+
+	y=((float(y)/1020)*70);
+	error=(y-35)*kp;
+	if(error<0)
+	{	lcd_cursor(2,1);
+		lcd_string("-");
+		lcd_print(2,2,(error*(-1)),3);
+	}
+	else{
+		lcd_cursor(2,1);
+		lcd_string("+");
+		 lcd_print(2,2,error,3);
+	}
+	lcd_print(2,9,y,4);
+	_delay_ms(500);
 	if(flag==1)
 	{	
 		run_controller();
-		if((count>-4500) && (count<4500))
+		if((count>-6200) && (count<6200))
 		{
-			line();
+			p_line();
 		}
 		else 
 		{
 			stop();
 			flag=0;
-			lcd_cursor(1,14);
-			lcd_string("e");
+			lcd_cursor(1,13);
+			lcd_string("enco");
 			while(flag==0)
 			{
 				run_controller();
 			}
 			_delay_ms(200);
-			lcd_cursor(1,14);
-			lcd_string(" ");
+			lcd_cursor(1,13);
+			lcd_string("   ");
 			count=0;
 		}
 		if((PINF&0x10)==0x10)
-		{	
-			lcd_cursor(2,13);
-			lcd_string("j");
-			stop();
+		{	stop();
+			count=0;
+			PORTC|=(1<<PC3);
+			_delay_ms(2000);
+			PORTC&=~(1<<PC3);
+			lcd_cursor(1,13);
+			lcd_string("junc");
+			
 			flag=0;
 			while(flag==0)
 			{
 				run_controller();
 			}
 			_delay_ms(200);
-			lcd_cursor(2,13);
-			lcd_string(" ");
+			lcd_cursor(1,13);
+			lcd_string("    ");
 			
 		}
 		
