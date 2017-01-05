@@ -21,9 +21,9 @@ volatile uint8_t rx;
 volatile uint8_t ry;
 int cross_button , square_button , circle_button , triangle_button , r1_button , l1_button , l2_button;
 int pad_up, pad_down, pad_left, pad_right;
-int flag=0;
-int error=0,p_error=0;
-float kp=0.4;
+int flag=0,j_flag=0,e_flag=0;
+float error=0,p_error=0;
+float kp=0.42,kd=0.03;
 
 int y;
 	
@@ -69,6 +69,28 @@ void stop()
 	OCR2A = 0;*/
 	//PORTA=0x00;     //wheel 1
 }
+void rotate_anticlockwise()
+{
+	PORTA=(1<<PA1) | (1<<PA5) | (1<<PA0) | (1<<PA4);
+	OCR1CL = 25;	 //wheel 3
+	OCR1AL = 25;	 //wheel 2
+	OCR1BL = 25;	 //wheel 4
+	OCR2A = 25;      //wheel 1
+	//_delay_ms(10);
+
+}
+
+void rotate_clockwise()
+{
+	PORTA=(1<<PA3) | (1<<PA7) | (1<<PA2) | (1<<PA6);
+	//_delay_ms(10);
+	OCR1CL = 25;	//wheel 3
+	OCR1AL = 25;	//wheel 2
+	OCR1BL = 25;	//wheel 4
+	OCR2A = 25;    //wheel 1
+	//_delay_ms(10);
+}
+
 
 void values_input()
 {
@@ -148,64 +170,118 @@ void line()
 	}
 	
 }
-void p_line()
+void error_calc()
 {
-	//int kd=0.5,diff;
 	y=ADCL;
 	y=(ADCH<<8) | y;
 
 	y=((float(y)/1020)*70);
-	error=(y-35)*kp;
+
+	
+	if(y>=68 || ((error-p_error)>10) || ((error-p_error)<-10))
+	{
+		error=p_error;
+		lcd_cursor(1,13);
+		lcd_string("i");
+	}
+	else
+	{
+		error=(y-35);
+		error=error*kp +(error-p_error)*kd;//modified was error=(y-35)*kp
+		p_error=error;
+		lcd_cursor(1,13);
+		lcd_string("o");
+	}
+	
 	if(error<0)
 	{	lcd_cursor(2,1);
 		lcd_string("-");
 		lcd_print(2,2,(error*(-1)),3);
 	}
+	
 	else{
 		lcd_cursor(2,1);
 		lcd_string("+");
 		lcd_print(2,2,error,3);
 	}
+	
 	lcd_print(2,9,y,4);
+}
+void allign()
+{	int s=0;
+	error_calc();
+	if(y>40)
+	{
+		rotate_clockwise();
+		s=0;
+	}
+	else if(y<30)
+	{
+		rotate_anticlockwise();
+		s=0;
+	}
+	else;
+	
+	 if(s=0)
+	{
+		stop();
+		flag=1;
+		_delay_ms(100);
+		s=1;
+	}
+	
+	if(s=1)
+	{
+		forward();
+	}
+	
+}
+
+void p_line()
+{
+	//int kd=0.5,diff;
 	
 	/*if(dir==0)
 	{	
 		error=error*(-1)*kp;
 	}
 	else;
-	if((error>=(30)) || (error<=(-30)))
-	{
+	*/
+	if((error>=(40)) || (error<=(-40)))
+	{	
+		lcd_cursor(1,13);
+		lcd_string("h");
 		stop();
 	}
 	else
-	{*/
-		
+	{
+		error_calc();
 		if(error>0)
 		{
-			OCR1BL=30-error;  //wheel B
-			OCR2A=30+error;	 //wheel C -error
-			OCR1CL = 30+error;	 //wheel A
-			OCR1AL = 30-error;	 //wheel D
+			OCR1BL=40-error;  //wheel B
+			OCR2A=40+error;	 //wheel C -error
+			OCR1CL = 40+error;	 //wheel A
+			OCR1AL = 40-error;	 //wheel D
 		}
 		else if(error<0)
 		{
-			OCR1BL=30-error; //wheel B+error
-			OCR2A=30+error;	 //wheel C
-			OCR1CL = 30+error;	 //wheel A
-			OCR1AL = 30-error;	 //wheel D
+			OCR1BL=40-error; //wheel B+error
+			OCR2A=40+error;	 //wheel C
+			OCR1CL = 40+error;	 //wheel A
+			OCR1AL = 40-error;	 //wheel D
 			
 		}
 		else
 		{
-			OCR1CL = 30;	 //wheel A
-			OCR1AL = 30;	 //wheel D
-			OCR1BL = 30;	 //wheel B
-			OCR2A =	30;      //wheel C
+			OCR1CL = 40;	 //wheel A
+			OCR1AL = 40;	 //wheel D
+			OCR1BL = 40;	 //wheel B
+			OCR2A =	40;      //wheel C
 			
 			
 		}
 	}
-//}
+}
 int main(void)
 {
 	psx_init(&PORTK , 1 , &PORTK , 4 , &PORTK , 0 , &PORTK , 2);		
@@ -238,7 +314,7 @@ int main(void)
 while(1)
 {	
 	run_controller();
-	y=ADCL;
+	/*y=ADCL;
 	y=(ADCH<<8) | y;
 
 	y=((float(y)/1020)*70);
@@ -254,17 +330,24 @@ while(1)
 		 lcd_print(2,2,error,3);
 	}
 	lcd_print(2,9,y,4);
-	_delay_ms(500);
-	if(flag==1)
+	_delay_ms(500);*/
+	error_calc();
+	while(flag==1)
 	{	
 		run_controller();
-		if((count>-6200) && (count<6200))
+	if (e_flag==0)
+	{
+			
+		if((count>-6200) && (count<6200))   
 		{
 			p_line();
 		}
-		else 
+		
+		else
 		{
 			stop();
+			_delay_ms(5000);
+			e_flag=1;
 			flag=0;
 			lcd_cursor(1,13);
 			lcd_string("enco");
@@ -272,14 +355,23 @@ while(1)
 			{
 				run_controller();
 			}
-			_delay_ms(200);
+			//_delay_ms(200);
 			lcd_cursor(1,13);
-			lcd_string("   ");
+			lcd_string("    ");
+			//e_flag=1;
 			count=0;
 		}
+	}
+	else if(e_flag==1)
+	{
+		allign();
+	}
+	
 		if((PINF&0x10)==0x10)
-		{	stop();
+		{	p_line();
+			stop();
 			count=0;
+			e_flag=0;
 			PORTC|=(1<<PC3);
 			_delay_ms(2000);
 			PORTC&=~(1<<PC3);
@@ -291,7 +383,7 @@ while(1)
 			{
 				run_controller();
 			}
-			_delay_ms(200);
+			//_delay_ms(200);
 			lcd_cursor(1,13);
 			lcd_string("    ");
 			
@@ -303,7 +395,7 @@ while(1)
 		}
 		else
 		{
-			lcd_print(1,1,(count*(-1)),5);//modified
+			lcd_print(1,1,(count*(-1)),5);
 		}
 		if((dir_l)!=dir)
 		{
